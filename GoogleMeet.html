@@ -1,12 +1,39 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Join your Google Meet meeting">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https:; script-src 'self' 'unsafe-inline' https://www.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' blob:; connect-src 'self' https:;">
     <title>Google Meet - Join Meeting</title>
     <link rel="icon" href="https://www.gstatic.com/meet/google_meet_horizontal_wordmark_2020q4_1x_icon_124_40_23739657a08d546166ba0a0e4a3f3a20.png" type="image/png">
     <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --primary-color: #1a73e8;
+            --primary-dark: #1557b0;
+            --error-color: #d93025;
+            --success-color: #188038;
+            --text-primary: #202124;
+            --text-secondary: #5f6368;
+            --background: #f8f9fa;
+            --surface: #ffffff;
+            --border-color: #dadce0;
+            --shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 2px 6px 2px rgba(60,64,67,0.15);
+        }
+        
+        [data-theme="dark"] {
+            --primary-color: #8ab4f8;
+            --primary-dark: #669df6;
+            --error-color: #f28b82;
+            --success-color: #81c995;
+            --text-primary: #e8eaed;
+            --text-secondary: #9aa0a6;
+            --background: #202124;
+            --surface: #2d2e30;
+            --border-color: #5f6368;
+            --shadow: 0 1px 2px 0 rgba(0,0,0,0.3), 0 2px 6px 2px rgba(0,0,0,0.15);
+        }
         body {
             font-family: 'Google Sans', Arial, sans-serif;
             margin: 0;
