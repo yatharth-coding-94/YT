@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spin & Win</title>
+<style>
+  body {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100vh; margin: 0; font-family: sans-serif; background: #222; color: white;
+  }
+  #wheel {
+    width: 300px; height: 300px; border: 10px solid #fff; border-radius: 50%;
+    position: relative; margin-bottom: 20px; transition: transform 4s cubic-bezier(0.33, 1, 0.68, 1);
+    overflow: hidden;
+  }
+  .sector {
+    position: absolute; width: 50%; height: 50%; top: 50%; left: 50%;
+    transform-origin: 0% 0%;
+    text-align: center; color: white; font-size: 14px;
+    display: flex; align-items: center; justify-content: center; /* <-- add this */
+  }
+  .sector div {
+    transform: rotate(0deg);
+  }
+  #spinBtn {
+    padding: 10px 20px; font-size: 18px; background: #e91e63; border: none;
+    border-radius: 5px; cursor: pointer;
+  }
+  #result {
+    margin-top: 15px; font-size: 20px;
+  }
+</style>
+</head>
+<body>
+<div id="wheel"></div>
+<button id="spinBtn">Spin</button>
+<div id="result"></div>
+
+<script>
+  const prizes = ['iPhone', 'Money', 'Spin Again', 'Gift Card', 'Nothing', 'Try Again'];
+  const colors = ['#f44336', '#3f51b5', '#009688', '#ff9800', '#9c27b0', '#4caf50'];
+  const wheel = document.getElementById('wheel');
+  const anglePerSector = 360 / prizes.length;
+
+  // create sectors
+  prizes.forEach((prize, index) => {
+    const sector = document.createElement('div');
+    sector.className = 'sector';
+    sector.style.background = colors[index % colors.length];
+    sector.style.transform = `rotate(${index * anglePerSector}deg) skewY(${90 - anglePerSector}deg)`;
+    sector.innerHTML = `<div style="transform: skewY(-${90 - anglePerSector}deg) rotate(-${anglePerSector/2}deg);">${prize}</div>`;
+    wheel.appendChild(sector);
+  });
+
+  let spinning = false;
+  let currentRotation = 0;
+
+  document.getElementById('spinBtn').onclick = () => {
+    if (spinning) return;
+    spinning = true;
+
+    const randomIndex = Math.floor(Math.random() * prizes.length);
+    const extraSpins = 5; // full rotations
+    const targetRotation = extraSpins * 360 + (360 - randomIndex * anglePerSector - anglePerSector/2);
+
+    currentRotation += targetRotation;
+
+    wheel.style.transform = `rotate(${currentRotation}deg)`;
+
+    setTimeout(() => {
+      document.getElementById('result').innerText = `🎉 You got: ${prizes[randomIndex]}!`;
+      spinning = false;
+    }, 4000);
+  }
+</script>
+</body>
+</html>
